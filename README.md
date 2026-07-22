@@ -5,9 +5,14 @@ A natural language AI assistant for querying and manipulating Excel data. Built 
 ## Setup
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env   # add your API key
-python main.py
+# Install dependencies and create virtualenv
+uv sync
+
+# Add your API key
+cp .env.example .env   # then fill in GROQ_API_KEY
+
+# Run
+uv run main.py
 ```
 
 ## Design Decisions
