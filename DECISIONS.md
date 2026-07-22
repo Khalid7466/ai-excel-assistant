@@ -105,25 +105,42 @@ Use **Streamlit** as the UI layer.
 - Add `streamlit` as a dependency via `uv add streamlit`.
 - Entry point changes from `uv run main.py` to `uv run streamlit run app.py`.
 - README setup section must be updated accordingly.
+***
 
-## ADR-005: Tools Layer Architecture & Safety Guardrails
+## ADR-005: Static Schema Injection vs Schema Tool
 
 **Date:** 2026-07-22
 **Status:** Accepted
 
 **Context:**
-Designing the interface between the LLM Agent and the Excel datasets requires balancing token costs, latency, and strict data safety to prevent LLM-driven mass deletions or corrupt data insertions. 
+The LLM needs to know the exact column names and data types of the two Excel files to formulate accurate filters and inserts. 
 
 **Decision:**
-The Tools Layer is designed with three core architectural guardrails:
-1. **Static Schema Injection:** Instead of providing a `get_schema()` tool, the schema (columns and types) is injected directly into the LLM's System Prompt at startup.
-2. **Tool-Level Safety for Mutations (Update/Delete):** The `update_rows` and `delete_rows` tools accept flexible `filters` instead of requiring strict IDs, but enforce an "Ambiguity Check" natively in the Python code: if a filter matches more than 1 row, the tool refuses to execute and returns a deterministic error instructing the LLM to clarify with the user.
-3. **Slot Filling Validation for Inserts:** The `insert_row` tool enforces strict required fields in the backend. The LLM is instructed (via System Prompt) to perform "Slot Filling" by asking the user for missing fields *before* calling the tool. If the LLM disobeys, the Python tool catches the missing fields and returns an error forcing the LLM to ask the user.
+Inject the full schema of the two datasets directly into the **System Prompt** at startup, rather than providing a `get_schema()` tool.
 
 **Rationale:**
-- **Cost & Latency:** Schema injection avoids a costly 2-step retrieval process (Fetch Schema -> Answer Query) for every user message.
-- **Agent-Level vs Tool-Level Safety:** Instructing the LLM to "only delete by ID" (Agent-Level Safety) is prone to hallucinations. Building the `len(matches) == 1` check directly into the Python backend (Tool-Level Safety) provides an unbreakable guardrail against mass data loss.
-- **Data Integrity:** The two-layered approach for `insert_row` ensures high data quality while providing a natural conversational experience (the assistant proactively asks for missing data instead of inserting `NaN`s).
+- **Latency and Cost:** For a small, static dataset architecture (2 files), using a `get_schema` tool forces the LLM into a two-step reasoning process (Fetch Schema -> Answer Query) for every interaction, doubling the API cost and response time.
+- **Context Window:** The schemas for these two files are small enough to easily fit within the System Prompt without overwhelming the context window.
+
+---
+
+## ADR-006: Tools Layer Architecture & Safety Guardrails
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:**
+Designing the interface between the LLM Agent and the Excel datasets requires balancing data safety (preventing mass deletions/corruptions) with code maintainability and testability.
+
+**Decision:**
+The Tools Layer (`tools.py`) is designed as a standalone, stateless Python module with the following backend guardrails:
+1. **Ambiguity Check (Update/Delete):** Tools accept flexible `filters`, but if a filter matches > 1 row, the Python code refuses to execute and forces the LLM to ask the user for clarification (Tool-Level Safety).
+2. **Slot Filling Validation (Inserts):** Enforces strict required fields. If the LLM omits them, the tool returns an error forcing the LLM to proactively ask the user.
+3. **In-Memory Testing Isolation:** The test suite (`test_tools.py`) strictly uses `unittest.mock.patch` to intercept pandas file operations. It tests the guardrails entirely in memory without ever touching production data files.
+
+**Rationale:**
+- **Agent-Level vs Tool-Level Safety:** Relying on the LLM to "be careful" (Agent-Level Safety) is prone to hallucinations. Hardcoding these checks in Python provides an unbreakable guardrail against data loss.
+- **Testing Integrity:** Mocking the filesystem ensures the test suite is fast, idempotent, and completely isolated from the real `.xlsx` state.
 
 ---
 
