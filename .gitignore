@@ -11,6 +11,9 @@ build/
 .venv/
 venv/
 
+# uv
+uv.lock
+
 # Data files (don't commit real Excel files)
 *.xlsx
 *.xls
