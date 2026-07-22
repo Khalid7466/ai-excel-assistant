@@ -72,4 +72,40 @@ Use **pandas** for all data operations, backed by **openpyxl** engine for writin
 
 ---
 
+## ADR-004: UI Layer — Streamlit
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:**
+The task scores higher when the assistant is easy for the user to interact with ("the easier for the user to get answers, the higher your score"). Three UI options were evaluated:
+
+| Option | Description |
+|---|---|
+| Terminal CLI | Plain `input()` loop — no visual interface |
+| Gradio | Pure Python, designed for ML model demos |
+| Streamlit | Pure Python, designed for data applications |
+
+**Decision:**
+Use **Streamlit** as the UI layer.
+
+**Rationale:**
+
+1. **Rich data display alongside chat.** The task involves two structured Excel datasets (real estate listings, marketing campaigns). Streamlit's `st.dataframe()` and `st.bar_chart()` allow showing the actual filtered table next to the AI's answer — something a terminal or Gradio's `ChatInterface` cannot do cleanly.
+
+2. **Pure Python, zero backend knowledge required.** Streamlit compiles the entire UI from a Python script. No HTML, CSS, JavaScript, or server routing needed.
+
+3. **Purpose-built chat primitives.** `st.chat_message()` and `st.chat_input()` produce a polished chat interface with minimal code.
+
+4. **Better fit than Gradio for this task.** Gradio's `ChatInterface` is optimized for text-in/text-out model demos. Adding a live DataFrame view or chart next to the chat response requires significant workarounds. Streamlit handles this natively.
+
+5. **Industry recognition.** Streamlit is the standard tool for AI/data demos in the ML community. Explaining the choice in a live defense call requires no justification.
+
+**Consequences:**
+- Add `streamlit` as a dependency via `uv add streamlit`.
+- Entry point changes from `uv run main.py` to `uv run streamlit run app.py`.
+- README setup section must be updated accordingly.
+
+---
+
 *More ADRs will be added as decisions are made.*
