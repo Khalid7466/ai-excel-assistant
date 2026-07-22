@@ -106,6 +106,25 @@ Use **Streamlit** as the UI layer.
 - Entry point changes from `uv run main.py` to `uv run streamlit run app.py`.
 - README setup section must be updated accordingly.
 
+## ADR-005: Tools Layer Architecture & Safety Guardrails
+
+**Date:** 2026-07-22
+**Status:** Accepted
+
+**Context:**
+Designing the interface between the LLM Agent and the Excel datasets requires balancing token costs, latency, and strict data safety to prevent LLM-driven mass deletions or corrupt data insertions. 
+
+**Decision:**
+The Tools Layer is designed with three core architectural guardrails:
+1. **Static Schema Injection:** Instead of providing a `get_schema()` tool, the schema (columns and types) is injected directly into the LLM's System Prompt at startup.
+2. **Tool-Level Safety for Mutations (Update/Delete):** The `update_rows` and `delete_rows` tools accept flexible `filters` instead of requiring strict IDs, but enforce an "Ambiguity Check" natively in the Python code: if a filter matches more than 1 row, the tool refuses to execute and returns a deterministic error instructing the LLM to clarify with the user.
+3. **Slot Filling Validation for Inserts:** The `insert_row` tool enforces strict required fields in the backend. The LLM is instructed (via System Prompt) to perform "Slot Filling" by asking the user for missing fields *before* calling the tool. If the LLM disobeys, the Python tool catches the missing fields and returns an error forcing the LLM to ask the user.
+
+**Rationale:**
+- **Cost & Latency:** Schema injection avoids a costly 2-step retrieval process (Fetch Schema -> Answer Query) for every user message.
+- **Agent-Level vs Tool-Level Safety:** Instructing the LLM to "only delete by ID" (Agent-Level Safety) is prone to hallucinations. Building the `len(matches) == 1` check directly into the Python backend (Tool-Level Safety) provides an unbreakable guardrail against mass data loss.
+- **Data Integrity:** The two-layered approach for `insert_row` ensures high data quality while providing a natural conversational experience (the assistant proactively asks for missing data instead of inserting `NaN`s).
+
 ---
 
 *More ADRs will be added as decisions are made.*
