@@ -1,0 +1,125 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "query_data",
+      "description": "Search and filter rows from a dataset. Use this to answer questions about the data, find specific records, or look up IDs before updating or deleting.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["real_estate", "marketing"],
+            "description": "The dataset to query."
+          },
+          "filters": {
+            "type": "object",
+            "description": "Column-value pairs to filter by. Supports comparison operators as string prefixes: '>500', '<=10', '!=active'. Example: {\"City\": \"Seattle\", \"List Price\": \">500000\"}"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of rows to return. Defaults to 20."
+          }
+        },
+        "required": ["dataset"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "get_summary",
+      "description": "Return aggregate statistics for a dataset. Use this for analytical questions like totals, averages, min/max, or group-by breakdowns.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["real_estate", "marketing"],
+            "description": "The dataset to summarize."
+          },
+          "group_by": {
+            "type": "string",
+            "description": "Optional column name to group results by. Example: 'Channel' or 'City'."
+          },
+          "metric": {
+            "type": "string",
+            "enum": ["count", "mean", "sum", "min", "max"],
+            "description": "The aggregation metric to apply. Defaults to 'mean'."
+          }
+        },
+        "required": ["dataset"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "insert_row",
+      "description": "Insert a new row into a dataset. IMPORTANT: Only call this after collecting ALL required fields from the user. Required fields for real_estate: Property Type, City, State, List Price. Required fields for marketing: Campaign Name, Channel, Budget Allocated.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["real_estate", "marketing"],
+            "description": "The dataset to insert into."
+          },
+          "row": {
+            "type": "object",
+            "description": "A dict of column-value pairs for the new record. The ID will be auto-generated if not provided."
+          }
+        },
+        "required": ["dataset", "row"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_rows",
+      "description": "Update fields in a row that matches the given filters. SAFETY: If the filter matches more than 1 row, the tool will return an Ambiguity Error — do NOT retry, ask the user to be more specific. Use query_data first if you are unsure how many rows match.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["real_estate", "marketing"],
+            "description": "The dataset to update."
+          },
+          "filters": {
+            "type": "object",
+            "description": "Column-value pairs to identify the exact row to update. Use the record's ID for precision. Example: {\"Campaign ID\": \"CMP-5\"}"
+          },
+          "updates": {
+            "type": "object",
+            "description": "Column-value pairs representing the new values to apply. Example: {\"Budget Allocated\": 20000}"
+          }
+        },
+        "required": ["dataset", "filters", "updates"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "delete_rows",
+      "description": "Delete a row that matches the given filters. SAFETY: Only call this after user confirmation. If the filter matches more than 1 row, the tool returns an Ambiguity Error — do NOT retry, ask the user to clarify. Use query_data first if you are unsure of the exact record.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["real_estate", "marketing"],
+            "description": "The dataset to delete from."
+          },
+          "filters": {
+            "type": "object",
+            "description": "Column-value pairs to identify the exact row to delete. Use the record's ID for precision. Example: {\"Listing ID\": \"LST-12\"}"
+          }
+        },
+        "required": ["dataset", "filters"]
+      }
+    }
+  }
+]

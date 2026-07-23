@@ -40,8 +40,8 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     for col, val in filters.items():
         if col not in df.columns:
             continue
-            
-        # Numeric comparison
+
+        # Numeric comparison operators
         if isinstance(val, str) and val[:2] in (">=", "<=", "!="):
             op, num = val[:2], float(val[2:])
             ops = {">=": "__ge__", "<=": "__le__", "!=": "__ne__"}
@@ -50,10 +50,13 @@ def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
             op, num = val[0], float(val[1:])
             df = df[df[col] > num] if op == ">" else df[df[col] < num]
         else:
-            # Case-insensitive string match or exact numeric match
-            if df[col].dtype == object:
-                df = df[df[col].str.lower() == str(val).lower()]
+            if not pd.api.types.is_numeric_dtype(df[col]):
+                # String columns: case-insensitive partial match (contains).
+                # This is intentional — users rarely know the exact name.
+                # Ambiguity Guard in update/delete protects against multi-row mutations.
+                df = df[df[col].astype(str).str.contains(str(val), case=False, na=False)]
             else:
+                # Numeric/ID columns: exact match
                 df = df[df[col] == val]
     return df
 

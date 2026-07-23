@@ -144,4 +144,69 @@ The Tools Layer (`tools.py`) is designed as a standalone, stateless Python modul
 
 ---
 
-*More ADRs will be added as decisions are made.*
+## ADR-007: Agent Architecture — ReAct Loop, Memory & Resilience
+
+**Date:** 2026-07-23
+**Status:** Accepted
+
+**Context:**
+Designing the core engine (`agent.py`) that connects the LLM to the tools layer. Three architectural questions needed answers: how to implement the reasoning loop, how to manage conversation state, and how to handle LLM provider failures.
+
+**Decision:**
+The agent is built as a single `ExcelAgent` class with three design choices:
+
+1. **Manual ReAct Loop (No Frameworks):** The tool-calling lifecycle is implemented as a `while True` loop. Each iteration calls the Groq API; if the response contains tool calls, they are executed and their results (including errors) are appended as `tool` messages before the next iteration. The loop exits only when the LLM returns a plain text response.
+
+2. **Stateful Conversation History:** All messages (user, assistant, tool results) are accumulated in `self.history` and sent in full with every API call, giving the LLM complete context across turns.
+
+3. **Retry Logic for Transient Failures:** The Groq free-tier API occasionally returns `tool_use_failed` errors due to model generation issues. The agent retries up to 3 times with a 1-second backoff before propagating the error.
+
+**Rationale:**
+- **ReAct Loop:** Building the loop manually (per ADR-001) means every decision the LLM makes is visible and debuggable in plain Python. No framework abstractions hide the flow.
+- **Stateful History:** Multi-turn workflows like Slot Filling (asking the user for missing fields across multiple messages) are impossible without full history. A stateless design would lose context between turns.
+- **Retry Logic:** LLM inference on free-tier APIs is probabilistic and occasionally flaky. A simple retry is the minimum production-grade resilience pattern with negligible cost (max 3 extra seconds). Failing fast without retry would degrade UX unnecessarily.
+
+---
+
+## ADR-008: External Configuration — Prompts & Tool Schemas as Files
+
+**Date:** 2026-07-23
+**Status:** Accepted
+
+**Context:**
+`agent.py` needs a System Prompt and a Tools JSON Schema to function. Where should these live?
+
+**Decision:**
+Store both as standalone files loaded at startup:
+- `prompts/system_prompt.md` — the agent's instructions and rules.
+- `schemas/tools_schema.json` — the 5 tool definitions in Groq/OpenAI JSON Schema format.
+
+**Rationale:**
+- **Separation of Concerns:** `agent.py` becomes a pure engine with zero hardcoded configuration. A non-developer (e.g., a Product Manager) can tune the prompt without touching Python.
+- **Git History Clarity:** Prompt iteration history is tracked separately from code logic changes, making reviews easier.
+- **Extensibility:** Adding a new prompt variant (e.g., for a different language) is a new file, not a code change.
+
+---
+
+## ADR-009: String Filter Matching — Contains vs Exact Match
+
+**Date:** 2026-07-23
+**Status:** Accepted (Revised)
+
+**Context:**
+How should `_apply_filters` match string column values? A user asking to "delete the Summer campaign" will likely pass `{"Campaign Name": "Summer"}` — but no row has that exact name; real rows are named "Summer Promo - Facebook 2024 Q1".
+
+**First Answer (Rejected):**
+Use exact, case-insensitive matching (`str.lower() == val.lower()`). Simple and predictable, but means the LLM must know the full, exact name — which it never will from a natural language query. This produced a silent "No rows found" instead of meaningful feedback.
+
+**Why That Was Wrong:**
+The system is a natural-language interface. Users think in keywords, not exact record names. An exact match forces the LLM to hallucinate precise names, defeating the purpose of an AI assistant.
+
+**Revised Decision:**
+Use **case-insensitive partial match** (`str.contains`, case=False) for all non-numeric columns. Numeric and ID columns retain exact match for precision.
+
+**Rationale:**
+- **UX Correctness:** Keyword search matches user intent. "Summer" correctly surfaces all 65 Summer campaigns.
+- **Safety is preserved:** The Ambiguity Guard in `update_rows` / `delete_rows` (ADR-006) catches the multi-row result and forces the LLM to ask the user for clarification before any mutation executes. Contains matching and the Ambiguity Guard are designed to work together.
+- **Implementation Note:** Fixed a secondary bug — newer pandas versions return `StringDtype` instead of `object` for text columns from Excel. The check was updated from `dtype == object` to `pd.api.types.is_numeric_dtype()` to handle both correctly.
+
