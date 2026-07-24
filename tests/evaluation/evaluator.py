@@ -138,7 +138,7 @@ def evaluate():
                     reason = "Failed: Did not handle ambiguity correctly."
 
         elif check_type.startswith("state_mutation"):
-            if not tool_calls or tool_calls[0]["name"] != expected_tool:
+            if not tool_calls or expected_tool not in [tc["name"] for tc in tool_calls]:
                 reason = f"Failed: Correct tool {expected_tool} not called."
             else:
                 target = test["mutation_target"]

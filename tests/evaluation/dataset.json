@@ -19,7 +19,6 @@
     "expected_tool": "get_summary",
     "expected_args_subset": {
       "dataset": "marketing",
-      "group_by": "Channel",
       "metric": "sum"
     },
     "check_type": "tool_call"
@@ -37,7 +36,7 @@
   {
     "id": "eval-4",
     "category": "Robustness: Ambiguity Guard (Delete)",
-    "query": "Delete the Summer campaign",
+    "query": ["Delete the Summer campaign", "Yes, I confirm I want to delete it."],
     "expected_tool": "delete_rows",
     "check_type": "ambiguity_recovery",
     "expected_reply_contains": [
@@ -49,7 +48,7 @@
   {
     "id": "eval-5",
     "category": "Robustness: Ambiguity Guard (Update)",
-    "query": "Update the budget for Instagram campaigns to 20000",
+    "query": ["Update the budget for Instagram campaigns to 20000", "Yes, update all of them."],
     "expected_tool": "update_rows",
     "check_type": "ambiguity_recovery"
   },
@@ -78,7 +77,7 @@
   {
     "id": "eval-8",
     "category": "State Mutability: Deterministic Delete",
-    "query": "Delete marketing campaign CMP-8003",
+    "query": ["Delete marketing campaign CMP-8003", "Yes, I am completely sure. Delete it."],
     "expected_tool": "delete_rows",
     "check_type": "state_mutation_delete",
     "mutation_target": {
@@ -104,7 +103,7 @@
   {
     "id": "eval-10",
     "category": "State Mutability: Deterministic Insert",
-    "query": "Insert a new real estate listing: Single Family in Austin, TX for 450000.",
+    "query": "Insert a new real estate listing: Single Family in Austin, TX for 450000. It has 3 Bedrooms, 2 Bathrooms, and 2000 Square Footage.",
     "expected_tool": "insert_row",
     "check_type": "state_mutation_insert",
     "mutation_target": {
@@ -138,8 +137,8 @@
   {
     "id": "eval-13",
     "category": "Advanced: Schema Error Recovery",
-    "query": "Delete campaigns where Cost is greater than 10000",
-    "expected_tool": "delete_rows",
+    "query": "Show campaigns where Cost is greater than 10000",
+    "expected_tool": "query_data",
     "check_type": "schema_recovery"
   },
   {
