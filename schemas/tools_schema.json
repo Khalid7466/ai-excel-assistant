@@ -29,7 +29,7 @@
     "type": "function",
     "function": {
       "name": "get_summary",
-      "description": "Return aggregate statistics for a dataset. Use this for analytical questions like totals, averages, min/max, or group-by breakdowns.",
+      "description": "Return aggregate statistics for a dataset. Use this for analytical questions. CRITICAL: If you do NOT provide 'group_by', this tool automatically returns ALL metrics (min, max, mean, median, count) for ALL numeric columns at once! You only need to call it ONCE to get ranges for Bedrooms, Bathrooms, Prices, etc. DO NOT call this tool multiple times in parallel.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -38,14 +38,18 @@
             "enum": ["real_estate", "marketing"],
             "description": "The dataset to summarize."
           },
+          "filters": {
+            "type": "object",
+            "description": "Optional column-value pairs to filter the dataset BEFORE summarizing. Example: {\"City\": \"Chicago\"}"
+          },
           "group_by": {
             "type": "string",
             "description": "Optional column name to group results by. Example: 'Channel' or 'City'."
           },
           "metric": {
             "type": "string",
-            "enum": ["count", "mean", "sum", "min", "max"],
-            "description": "The aggregation metric to apply. Defaults to 'mean'."
+            "enum": ["count", "mean", "sum", "min", "max", "median"],
+            "description": "The aggregation metric. ONLY APPLIES IF 'group_by' IS PROVIDED. If 'group_by' is empty, this parameter is ignored and ALL metrics are returned automatically."
           }
         },
         "required": ["dataset"]

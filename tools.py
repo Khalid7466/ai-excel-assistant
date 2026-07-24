@@ -36,28 +36,48 @@ def _load(dataset: str) -> pd.DataFrame:
 def _save(dataset: str, df: pd.DataFrame) -> None:
     df.to_excel(FILES[dataset], index=False)
 
+def _cast_value(col_series: pd.Series, val: any) -> any:
+    """Casts a string value to match the pandas column's dtype."""
+    if pd.isna(val):
+        return val
+    if pd.api.types.is_datetime64_any_dtype(col_series):
+        return pd.to_datetime(val)
+    if pd.api.types.is_numeric_dtype(col_series):
+        try:
+            f_val = float(val)
+            if pd.api.types.is_integer_dtype(col_series) and f_val.is_integer():
+                return int(f_val)
+            return f_val
+        except (ValueError, TypeError):
+            pass
+    return val
+
 def _apply_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     for col, val in filters.items():
         if col not in df.columns:
-            continue
+            raise ValueError(f"Column '{col}' does not exist in dataset. Available columns: {list(df.columns)}")
 
-        # Numeric comparison operators
-        if isinstance(val, str) and val[:2] in (">=", "<=", "!="):
-            op, num = val[:2], float(val[2:])
-            ops = {">=": "__ge__", "<=": "__le__", "!=": "__ne__"}
-            df = df[getattr(df[col], ops[op])(num)]
-        elif isinstance(val, str) and val[0] in (">", "<"):
-            op, num = val[0], float(val[1:])
-            df = df[df[col] > num] if op == ">" else df[df[col] < num]
+        # Comparison operators (>, <, >=, <=, !=)
+        if isinstance(val, str):
+            if val[:2] in (">=", "<=", "!="):
+                op, val_str = val[:2], val[2:]
+                parsed_val = _cast_value(df[col], val_str)
+                ops = {">=": "__ge__", "<=": "__le__", "!=": "__ne__"}
+                df = df[getattr(df[col], ops[op])(parsed_val)]
+                continue
+            elif val[0] in (">", "<"):
+                op, val_str = val[0], val[1:]
+                parsed_val = _cast_value(df[col], val_str)
+                df = df[df[col] > parsed_val] if op == ">" else df[df[col] < parsed_val]
+                continue
+
+        # Exact match or Contains
+        parsed_val = _cast_value(df[col], val)
+        if pd.api.types.is_datetime64_any_dtype(df[col]) or pd.api.types.is_numeric_dtype(df[col]):
+            df = df[df[col] == parsed_val]
         else:
-            if not pd.api.types.is_numeric_dtype(df[col]):
-                # String columns: case-insensitive partial match (contains).
-                # This is intentional — users rarely know the exact name.
-                # Ambiguity Guard in update/delete protects against multi-row mutations.
-                df = df[df[col].astype(str).str.contains(str(val), case=False, na=False)]
-            else:
-                # Numeric/ID columns: exact match
-                df = df[df[col] == val]
+            # String columns: case-insensitive partial match
+            df = df[df[col].astype(str).str.contains(str(val), case=False, na=False)]
     return df
 
 # ── tools ─────────────────────────────────────────────────────────────────────
@@ -92,38 +112,52 @@ def query_data(dataset: str, filters: dict | None = None, limit: int = 20) -> di
     }
 
 
-def get_summary(dataset: str, group_by: str | None = None, metric: str = "mean") -> dict:
+def get_summary(dataset: str, filters: dict | None = None, group_by: str | None = None, metric: str = "mean") -> dict:
     """
     Return aggregate statistics for a dataset.
     
     Args:
         dataset (str): "real_estate" or "marketing".
+        filters (dict, optional): {column_name: value}. Used to filter data BEFORE summarizing.
         group_by (str, optional): Column name to group results by (e.g., 'Channel').
-        metric (str): Aggregation type: "count", "mean", "sum", "min", "max".
+        metric (str): Aggregation type: "count", "mean", "sum", "min", "max", "median".
         
     Returns:
         dict: The aggregated statistics.
     """
     df = _load(dataset)
+
+    if filters:
+        for col in filters.keys():
+            if col not in df.columns:
+                return {"error": f"Filter column '{col}' not found. Available: {list(df.columns)}"}
+        df = _apply_filters(df, filters)
+
     numeric_cols = df.select_dtypes(include="number").columns.tolist()
 
     if group_by:
         if group_by not in df.columns:
             return {"error": f"Column '{group_by}' not found."}
-        grp = df.groupby(group_by)[numeric_cols]
+        
+        agg_cols = [c for c in numeric_cols if c != group_by]
+        grp = df.groupby(group_by)[agg_cols]
         ops = {"count": grp.count, "mean": grp.mean, "sum": grp.sum,
-               "min": grp.min, "max": grp.max}
+               "min": grp.min, "max": grp.max, "median": grp.median}
         
         if metric not in ops:
-            return {"error": f"Invalid metric '{metric}'. Use count, mean, sum, min, or max."}
+            return {"error": f"Invalid metric '{metric}'. Use count, mean, sum, min, max, or median."}
             
         result = ops[metric]().reset_index()
         return {"group_by": group_by, "metric": metric,
                 "rows": result.to_dict(orient="records")}
 
+    summary_dict = df[numeric_cols].describe().round(2).to_dict()
+    
     return {
+        "dataset_name": dataset,
         "total_rows": len(df),
-        "numeric_summary": df[numeric_cols].describe().round(2).to_dict(),
+        "numeric_summary": summary_dict,
+        "sample": df.head(10).to_dict(orient="records")
     }
 
 
@@ -201,7 +235,7 @@ def update_rows(dataset: str, filters: dict, updates: dict) -> dict:
     # Execute update exactly on the 1 matched row
     index_to_update = matched_df.index[0]
     for col, val in updates.items():
-        df.loc[index_to_update, col] = val
+        df.loc[index_to_update, col] = _cast_value(df[col], val)
 
     _save(dataset, df)
     

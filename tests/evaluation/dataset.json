@@ -1,0 +1,176 @@
+[
+  {
+    "id": "eval-1",
+    "category": "Trajectory: Happy Path Query",
+    "query": "How many marketing campaigns are running on Facebook?",
+    "expected_tool": "query_data",
+    "expected_args_subset": {
+      "dataset": "marketing",
+      "filters": {
+        "Channel": "Facebook"
+      }
+    },
+    "check_type": "tool_call"
+  },
+  {
+    "id": "eval-2",
+    "category": "Trajectory: Aggregation",
+    "query": "What is the total budget allocated for LinkedIn campaigns?",
+    "expected_tool": "get_summary",
+    "expected_args_subset": {
+      "dataset": "marketing",
+      "group_by": "Channel",
+      "metric": "sum"
+    },
+    "check_type": "tool_call"
+  },
+  {
+    "id": "eval-3",
+    "category": "Trajectory: Complex Numerical Filter",
+    "query": "Show me real estate listings in Austin with a price greater than 500000",
+    "expected_tool": "query_data",
+    "expected_args_subset": {
+      "dataset": "real_estate"
+    },
+    "check_type": "tool_call"
+  },
+  {
+    "id": "eval-4",
+    "category": "Robustness: Ambiguity Guard (Delete)",
+    "query": "Delete the Summer campaign",
+    "expected_tool": "delete_rows",
+    "check_type": "ambiguity_recovery",
+    "expected_reply_contains": [
+      "campaign",
+      "specify",
+      "more information"
+    ]
+  },
+  {
+    "id": "eval-5",
+    "category": "Robustness: Ambiguity Guard (Update)",
+    "query": "Update the budget for Instagram campaigns to 20000",
+    "expected_tool": "update_rows",
+    "check_type": "ambiguity_recovery"
+  },
+  {
+    "id": "eval-6",
+    "category": "Robustness: Slot Filling (Insert)",
+    "query": "Add a new marketing campaign for Instagram",
+    "expected_tool": null,
+    "check_type": "slot_filling",
+    "expected_reply_contains": [
+      "Name",
+      "Budget"
+    ]
+  },
+  {
+    "id": "eval-7",
+    "category": "Robustness: Slot Filling (Insert Real Estate)",
+    "query": "I want to add a Condo in Miami.",
+    "expected_tool": null,
+    "check_type": "slot_filling",
+    "expected_reply_contains": [
+      "State",
+      "Price"
+    ]
+  },
+  {
+    "id": "eval-8",
+    "category": "State Mutability: Deterministic Delete",
+    "query": "Delete marketing campaign CMP-8003",
+    "expected_tool": "delete_rows",
+    "check_type": "state_mutation_delete",
+    "mutation_target": {
+      "dataset": "marketing",
+      "id_column": "Campaign ID",
+      "id_value": "CMP-8003"
+    }
+  },
+  {
+    "id": "eval-9",
+    "category": "State Mutability: Deterministic Update",
+    "query": "Update the budget for campaign CMP-8005 to 99999",
+    "expected_tool": "update_rows",
+    "check_type": "state_mutation_update",
+    "mutation_target": {
+      "dataset": "marketing",
+      "id_column": "Campaign ID",
+      "id_value": "CMP-8005",
+      "check_column": "Budget Allocated",
+      "expected_value": 99999
+    }
+  },
+  {
+    "id": "eval-10",
+    "category": "State Mutability: Deterministic Insert",
+    "query": "Insert a new real estate listing: Single Family in Austin, TX for 450000.",
+    "expected_tool": "insert_row",
+    "check_type": "state_mutation_insert",
+    "mutation_target": {
+      "dataset": "real_estate"
+    }
+  },
+  {
+    "id": "eval-11",
+    "category": "Robustness: Out of Domain Rejection",
+    "query": "What is the capital of France?",
+    "expected_tool": null,
+    "check_type": "out_of_domain",
+    "expected_reply_contains": [
+      "I can only",
+      "real estate",
+      "marketing"
+    ]
+  },
+  {
+    "id": "eval-12",
+    "category": "Robustness: Out of Domain Rejection 2",
+    "query": "Write a python script to sort an array",
+    "expected_tool": null,
+    "check_type": "out_of_domain",
+    "expected_reply_contains": [
+      "real estate",
+      "marketing",
+      "I cannot"
+    ]
+  },
+  {
+    "id": "eval-13",
+    "category": "Advanced: Schema Error Recovery",
+    "query": "Delete campaigns where Cost is greater than 10000",
+    "expected_tool": "delete_rows",
+    "check_type": "schema_recovery"
+  },
+  {
+    "id": "eval-14",
+    "category": "Advanced: Cross-Dataset Reasoning",
+    "query": "Find the city with the highest real estate list price, and tell me how many marketing campaigns we are running in that city.",
+    "expected_tool": "query_data",
+    "check_type": "cross_dataset"
+  },
+  {
+    "id": "eval-15",
+    "category": "Advanced: Multi-turn Context",
+    "query": [
+      "Show me the first marketing campaign on Facebook.",
+      "Update the budget of that campaign to 88888."
+    ],
+    "expected_tool": "update_rows",
+    "check_type": "state_mutation_update",
+    "mutation_target": {
+      "dataset": "marketing",
+      "id_column": "Campaign ID",
+      "id_value": "CMP-8001",
+      "check_column": "Budget Allocated",
+      "expected_value": 88888
+    }
+  },
+  {
+    "id": "eval-16",
+    "category": "Advanced: Temporal Reasoning",
+    "query": "Show me campaigns ending in Q4",
+    "expected_tool": "query_data",
+    "check_type": "tool_call"
+  }
+]

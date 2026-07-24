@@ -22,31 +22,29 @@ Build the tool-calling loop manually using the LLM provider's raw API.
 
 ---
 
-## ADR-002: LLM Provider — Groq (llama-3.3-70b-versatile)
+## ADR-002: LLM Provider — Dynamic Configuration & Rate Limit Fallback
 
-**Date:** 2026-07-22
+**Date:** 2026-07-23 (Revised)
 **Status:** Accepted
 
 **Context:**
-Task requires free LLMs only. Options evaluated:
-
-| Provider | Model | Pros | Cons |
-|---|---|---|---|
-| Groq | llama-3.3-70b | Fast, free, native tool/function calling | Rate limits on free tier |
-| Google Gemini | gemini-1.5-flash | Generous free tier | Slightly slower for tool use |
-| OpenRouter | various | Flexible | Varies by model |
+Task requires free LLMs. Groq is extremely fast and provides `llama-3.3-70b-versatile`, but its free tier imposes strict rate limits (TPD: Tokens Per Day). A single provider approach proved fragile under evaluation workloads.
 
 **Decision:**
-Use **Groq with llama-3.3-70b-versatile** as the primary LLM.
+Use a **Dynamic Provider Registry** backed by the `openai` Python SDK, with **Automatic Rate Limit Fallback**.
+- Supported Providers: Groq, Cerebras, Google Gemini, OpenRouter, GitHub Models.
+- The `agent.py` dynamically loads any provided API keys from `.env` at startup.
+- If the primary provider hits a rate limit (HTTP 429 `RateLimitError`), the agent automatically and silently falls back to the next available provider.
 
 **Rationale:**
-- Native OpenAI-compatible function/tool calling API — means our loop code is standard and portable.
-- Fastest inference on free tier (often < 1s).
-- If Groq rate-limits, swapping to Gemini is a one-line change (same API shape via OpenAI SDK).
+- All major providers now offer OpenAI-compatible endpoints, allowing a single `openai` client to interact with any of them by just changing `base_url`.
+- Silently falling back provides a seamless user experience, preventing the application from crashing when a provider's daily or minute quota is exhausted.
+- Users can easily add or remove providers via the `.env` file without touching the codebase.
 
 **Consequences:**
-- Need a `GROQ_API_KEY` in `.env`.
-- Hard rate limit: 30 requests/minute on free tier — acceptable for a demo assistant.
+- Replaced the specific `groq` package with the generic `openai` package.
+- `agent.py` now maintains a stateful `provider_idx` during its ReAct loop.
+- The system is incredibly resilient to individual API rate limits or downtimes.
 
 ---
 
