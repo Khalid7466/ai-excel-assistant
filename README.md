@@ -72,4 +72,3 @@ The project is deliberately built *without* heavy agent frameworks (like LangCha
 4.  **Storage:** Local `.xlsx` files (`real_estate_listings.xlsx`, `marketing_campaigns.xlsx`).
 
 ---
-*Built with ❤️ for AI Engineering.*
