@@ -184,16 +184,27 @@ def insert_row(dataset: str, row: dict) -> dict:
                      f"Please ask the user to provide them before inserting."
         }
 
+    # Cast incoming values to match dataframe schema
+    casted_row = {}
+    for col, val in row.items():
+        if col in df.columns:
+            try:
+                casted_row[col] = _cast_value(df, col, val)
+            except ValueError as e:
+                return {"error": str(e)}
+        else:
+            casted_row[col] = val
+
     # Auto-generate ID if not provided
-    if id_col not in row:
+    if id_col not in casted_row:
         prefix = "LST" if dataset == "real_estate" else "CMP"
         existing = df[id_col].str.extract(r"(\d+)")[0].astype(float)
         next_id = int(existing.max()) + 1 if not existing.empty else 1
-        row[id_col] = f"{prefix}-{next_id}"
+        casted_row[id_col] = f"{prefix}-{next_id}"
 
-    new_df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    new_df = pd.concat([df, pd.DataFrame([casted_row])], ignore_index=True)
     _save(dataset, new_df)
-    return {"status": "inserted", "id": row[id_col], "row": row}
+    return {"status": "inserted", "id": casted_row[id_col], "row": casted_row}
 
 
 def update_rows(dataset: str, filters: dict, updates: dict) -> dict:
